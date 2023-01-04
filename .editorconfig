@@ -1,3 +1,5 @@
+root = true
+
 [*]
 indent_style = space
 indent_size = 4
@@ -6,7 +8,7 @@ insert_final_newline = true
 charset = utf-8
 max_line_length = 80
 
-[*.{fsx, fs}]
+[*.{fsx,fs}]
 fsharp_space_before_member = true
 fsharp_max_infix_operator_expression = 40
 fsharp_max_value_binding_width = 40

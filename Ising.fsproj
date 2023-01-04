@@ -1,12 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net7.0</TargetFramework>
+    <StartupObject>Project.Ising</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="src/Helpers.fs" />
+    <Compile Include="src/Lattice.fs" />
     <Compile Include="src/Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FSharp.Stats" Version="0.4.9" />
+    <PackageReference Include="Plotly.NET" Version="3.0.1" />
   </ItemGroup>
 
 </Project>
