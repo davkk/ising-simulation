@@ -1,109 +1,80 @@
 module Lattice
 
-open Helpers
-open FSharp.Stats
-open Microsoft.FSharp.Data.UnitSystems.SI.UnitNames
+open Tensor
 
-exception StateNumberError of string
-
-type Lattice =
+type Parameters =
     {
-        Size: int
-        Q: int
-        Spins: int[,]
+        Rng: System.Random
+        LatticeSize: int
+        NumOfStates: int
     }
 
     member this.States =
-        if this.Q > 1 then
-            [| 1 .. this.Q |]
+        if this.NumOfStates > 1 then
+            [| 1 .. this.NumOfStates |]
         else
-            raise (StateNumberError("q must be greater than one"))
+            raise (System.Exception "q must be greater than 1")
 
-let initRandom L q (rng: System.Random) =
-    {
-        Size = L
-        Q = q
-        Spins = Array2D.init L L (fun _ _ -> rng.Next(1, q + 1))
-    }
+let inline private (%/) a b = (a + b) % b
 
-let initCold L q =
-    {
-        Size = L
-        Q = q
-        Spins = Array2D.zeroCreate L L
-    }
+let inline private kronecker ((s_i, s_j): int * int) =
+    if s_i = s_j then 1 else 0
 
-let inline private (%%) n max = (n + max) % max
+let init par =
+    HostTensor.randomInt
+        par.Rng
+        (1, par.NumOfStates + 1)
+        [ par.LatticeSize; par.LatticeSize ]
 
-let neighborCount i j lattice =
-    let neighbors =
-        [|
-            lattice.Spins[(i - 1) %% lattice.Size, j]
-            lattice.Spins[(i + 1) %% lattice.Size, j]
-            lattice.Spins[i, (j - 1) %% lattice.Size]
-            lattice.Spins[i, (j + 1) %% lattice.Size]
-        |]
+let inline countInteractions (i, j) spin (lattice: Tensor<int>) =
+    let L = lattice.Shape[0]
 
-    let counts = Array.zeroCreate 4
+    kronecker (spin, lattice.[[ (i - 1L) %/ L; j ]])
+    + kronecker (spin, lattice.[[ (i + 1L) %/ L; j ]])
+    + kronecker (spin, lattice.[[ i; (j - 1L) %/ L ]])
+    + kronecker (spin, lattice.[[ i; (j + 1L) %/ L ]])
 
-    // TODO time against Array.countBy id
-    for i = 0 to 3 do
-        counts[neighbors[i] - 1] <- counts[neighbors[i] - 1] + 1
+let totalEnergy (lattice: Tensor<int>) =
+    -(lattice
+      |> HostTensor.mapi (fun index spin ->
+          lattice
+          |> countInteractions (index[0], index[1]) spin)
+      |> Tensor.sum)
 
-    counts
+let update par (P: float array) (lattice: Tensor<int>) =
+    let i =
+        par.Rng.Next(0, par.LatticeSize)
+        |> int64
 
-// let energy i j lattice =
-//     let current = lattice.Spins[i, j]
-//
-//     [|
-//         lattice.Spins[bc (i - 1) lattice.Size, j]
-//         lattice.Spins[bc (i + 1) lattice.Size, j]
-//         lattice.Spins[i, bc (j - 1) lattice.Size]
-//         lattice.Spins[i, bc (j + 1) lattice.Size]
-//     |]
-//     |> Seq.map (fun neighbor -> Math.kronecker (current, neighbor))
-//     |> Seq.sum
+    let j =
+        par.Rng.Next(0, par.LatticeSize)
+        |> int64
 
+    let oldSpin = lattice.[[ i; j ]]
 
-let totalEnergy lattice =
-    let sum =
-        lattice.Spins
-        |> Array2D.mapi (fun i j spin -> (neighborCount i j lattice).[spin - 1])
-        |> Array2D.toArray
-        |> Array.sum
-        |> float
+    let oldSpinEnergy =
+        lattice
+        |> countInteractions (i, j) oldSpin
 
-    let average = 
-        sum / float (lattice.Size * lattice.Size)
+    let newSpin =
+        par.States
+        |> Array.filter ((<>) oldSpin)
+        |> Array.item (par.Rng.Next(0, par.NumOfStates - 1))
 
-    // let sum =
-    //     lattice.Spins
-    //     |> Array2D.mapi (fun x y curr ->
-    //         kronecker (curr, lattice.Spins[bc (x - 1) lattice.Size, y])
-    //         + kronecker (curr, lattice.Spins[bc (x + 1) lattice.Size, y])
-    //         + kronecker (curr, lattice.Spins[x, bc (y - 1) lattice.Size])
-    //         + kronecker (curr, lattice.Spins[x, bc (y + 1) lattice.Size]))
-    //     |> Seq.cast<float>
-    //     |> Seq.sum
-
-    -average / 2.
+    let newSpinEnergy =
+        lattice
+        |> countInteractions (i, j) newSpin
 
 
-let magnetization lattice =
-    // (lattice.Spins
-    //  |> Seq.cast<float>
-    //  |> Seq.sum)
-    // / float (lattice.Size * lattice.Size)
-    0.
+    let dE = oldSpinEnergy - newSpinEnergy
 
+    if
+        dE < 0
+        || par.Rng.NextDouble() < P.[dE + 4]
+    then
+        lattice.[[ i; j ]] <- newSpin
+        dE
+    else
+        0
 
-// let print (lattice: Matrix<float>) =
-//     let min, max = Matrix.colRange lattice
-//
-//     for i in min .. max do
-//         for j in min .. max do
-//             Matrix.get lattice i j
-//             |> int
-//             |> match (j + 1) % (max + 1) with
-//                | 0 -> printf "%d\n"
-//                | _ -> printf "%d "
+// TODO return lattice, energy change for future use in plot, mag
