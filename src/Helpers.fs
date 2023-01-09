@@ -5,7 +5,8 @@ let inline (%/) a b = (a + b) % b
 type Parameters =
     {
         Rng: System.Random
-        LatticeSize: int
+        Sweeps: int
+        LatticeSize: int64
         NumOfStates: int
         Beta: float
     }
