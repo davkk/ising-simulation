@@ -1,4 +1,6 @@
-module Lattice
+module Potts
+
+open Helpers
 
 open Tensor
 
@@ -7,20 +9,19 @@ type Parameters =
         Rng: System.Random
         LatticeSize: int
         NumOfStates: int
+        Beta: float
     }
 
     member this.States =
         if this.NumOfStates > 1 then
             [| 1 .. this.NumOfStates |]
         else
-            raise (System.Exception "q must be greater than 1")
-
-let inline private (%/) a b = (a + b) % b
+            failwith "q must be greater than 1"
 
 let inline private kronecker ((s_i, s_j): int * int) =
     if s_i = s_j then 1 else 0
 
-let init par =
+let initLattice par =
     HostTensor.randomInt
         par.Rng
         (1, par.NumOfStates + 1)
@@ -41,14 +42,14 @@ let totalEnergy (lattice: Tensor<int>) =
           |> countInteractions (index[0], index[1]) spin)
       |> Tensor.sum)
 
-let update par (P: float array) (lattice: Tensor<int>) =
-    let i =
-        par.Rng.Next(0, par.LatticeSize)
-        |> int64
+let private update par (P: float array) (lattice: Tensor<int>) energy =
+    (*
+        Update function that mutates the supplied lattice in-place.
+    *)
 
-    let j =
-        par.Rng.Next(0, par.LatticeSize)
-        |> int64
+    let i, j =
+        par.Rng
+        |> Lattice.randomIndex par.LatticeSize
 
     let oldSpin = lattice.[[ i; j ]]
 
@@ -65,7 +66,6 @@ let update par (P: float array) (lattice: Tensor<int>) =
         lattice
         |> countInteractions (i, j) newSpin
 
-
     let dE = oldSpinEnergy - newSpinEnergy
 
     if
@@ -73,8 +73,24 @@ let update par (P: float array) (lattice: Tensor<int>) =
         || par.Rng.NextDouble() < P.[dE + 4]
     then
         lattice.[[ i; j ]] <- newSpin
-        dE
-    else
-        0
 
-// TODO return lattice, energy change for future use in plot, mag
+        energy + dE
+    else
+        energy
+
+let simulate parameters lattice =
+    let probabilities =
+        Array.init 9 (fun i -> exp (- float(i - 4) * parameters.Beta))
+
+    let rec loop i energy =
+        seq {
+            yield energy
+
+            let newEnergy =
+                energy
+                |> update parameters probabilities lattice
+
+            yield! loop (i + 1L) newEnergy
+        }
+
+    loop 1L (totalEnergy lattice)

@@ -2,7 +2,6 @@ module Program
 
 open System.IO
 
-open Lattice
 open Tensor
 
 open FSharp.Stats
@@ -13,51 +12,31 @@ open Plotly.NET
 [<EntryPoint>]
 let main _ = // TODO add args params
     let seed = 1973
-    let sweeps = 100_000_000
+    let sweeps = 10_000_000
     let beta = 1.4
 
-    let parameters =
+    let parameters: Potts.Parameters =
         {
             Rng = System.Random(seed)
-            LatticeSize = 512
-            NumOfStates = 3
+            LatticeSize = 256
+            NumOfStates = 4
+            Beta = beta
         }
 
-    let probabilities =
-        Array.init 9 (fun i -> exp (- float(i - 4) * beta))
+    printfn "[*] Initializing the lattice..."
+    let lattice = Potts.initLattice parameters
 
-    let lattice =
-        Lattice.init parameters
-
-    let initialLatticeChart =
+    printfn "[*] Running the simulation..."
+    let steps =
         lattice
-        |> HostTensor.toList2D
-        |> Chart.Heatmap
+        |> Potts.simulate parameters
+        |> Seq.take sweeps
+        |> Array.ofSeq
+    printfn "[+] Simulation done!"
 
-    let simulate sweeps lattice =
-        let mutable energy =
-            lattice |> Lattice.totalEnergy
-
-        [|
-            for _ in 1..sweeps do
-                let dE =
-                    lattice
-                    |> update parameters probabilities
-
-                energy <- energy + dE
-                yield energy
-        |]
-
-    let steps = lattice |> simulate sweeps
-
-    [
-        initialLatticeChart
-        lattice
-        |> HostTensor.toList2D
-        |> Chart.Heatmap
-    ]
-    |> Chart.Grid(1, 2)
-    |> Chart.withSize (1400, 740)
+    lattice
+    |> HostTensor.toList2D
+    |> Chart.Heatmap
     |> Chart.saveHtml (Path.Combine(__SOURCE_DIRECTORY__, "heatmap"))
 
     steps

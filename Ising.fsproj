@@ -4,11 +4,12 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net7.0</TargetFramework>
     <StartupObject>Project.Ising</StartupObject>
+    <Platform>x64</Platform>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="src/Helpers.fs" />
-    <Compile Include="src/Lattice.fs" />
+    <Compile Include="src/Potts.fs" />
     <Compile Include="src/Program.fs" />
   </ItemGroup>
 

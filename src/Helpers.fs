@@ -1,6 +1,7 @@
-namespace Helpers
+module Helpers
 
-module Array2D =
-    let toArray (arr2d: 'T[,]) = arr2d |> Seq.cast<'T> |> Array.ofSeq
+let inline (%/) a b = (a + b) % b
 
-
+module Lattice =
+    let randomIndex max (rng: System.Random) =
+        rng.Next(0, max) |> int64, rng.Next(0, max) |> int64
