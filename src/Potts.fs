@@ -1,31 +1,16 @@
 module Potts
 
 open Helpers
-
 open Tensor
-
-type Parameters =
-    {
-        Rng: System.Random
-        LatticeSize: int
-        NumOfStates: int
-        Beta: float
-    }
-
-    member this.States =
-        if this.NumOfStates > 1 then
-            [| 1 .. this.NumOfStates |]
-        else
-            failwith "q must be greater than 1"
 
 let inline private kronecker ((s_i, s_j): int * int) =
     if s_i = s_j then 1 else 0
 
-let initLattice par =
+let initLattice parameters =
     HostTensor.randomInt
-        par.Rng
-        (1, par.NumOfStates + 1)
-        [ par.LatticeSize; par.LatticeSize ]
+        parameters.Rng
+        (1, parameters.NumOfStates + 1)
+        [ parameters.LatticeSize; parameters.LatticeSize ]
 
 let inline countInteractions (i, j) spin (lattice: Tensor<int>) =
     let L = lattice.Shape[0]
@@ -42,14 +27,14 @@ let totalEnergy (lattice: Tensor<int>) =
           |> countInteractions (index[0], index[1]) spin)
       |> Tensor.sum)
 
-let private update par (P: float array) (lattice: Tensor<int>) energy =
+let private update parameters (P: float array) (lattice: Tensor<int>) energy =
     (*
         Update function that mutates the supplied lattice in-place.
     *)
 
     let i, j =
-        par.Rng
-        |> Lattice.randomIndex par.LatticeSize
+        parameters.Rng
+        |> Lattice.randomIndex parameters.LatticeSize
 
     let oldSpin = lattice.[[ i; j ]]
 
@@ -58,9 +43,9 @@ let private update par (P: float array) (lattice: Tensor<int>) energy =
         |> countInteractions (i, j) oldSpin
 
     let newSpin =
-        par.States
+        parameters.States
         |> Array.filter ((<>) oldSpin)
-        |> Array.item (par.Rng.Next(0, par.NumOfStates - 1))
+        |> Array.item (parameters.Rng.Next(0, parameters.NumOfStates - 1))
 
     let newSpinEnergy =
         lattice
@@ -70,7 +55,7 @@ let private update par (P: float array) (lattice: Tensor<int>) energy =
 
     if
         dE < 0
-        || par.Rng.NextDouble() < P.[dE + 4]
+        || parameters.Rng.NextDouble() < P.[dE + 4]
     then
         lattice.[[ i; j ]] <- newSpin
 

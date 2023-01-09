@@ -1,37 +1,38 @@
 module Program
 
+open Helpers
+
 open System.IO
-
 open Tensor
-
 open FSharp.Stats
-
 open Plotly.NET
 
 
 [<EntryPoint>]
 let main _ = // TODO add args params
     let seed = 1973
-    let sweeps = 10_000_000
+    let sweeps = 1_000_000
     let beta = 1.4
 
-    let parameters: Potts.Parameters =
+    let parameters : Parameters =
         {
             Rng = System.Random(seed)
             LatticeSize = 256
-            NumOfStates = 4
+            NumOfStates = 2
             Beta = beta
         }
 
     printfn "[*] Initializing the lattice..."
-    let lattice = Potts.initLattice parameters
+    let lattice = Ising.initLattice parameters
 
     printfn "[*] Running the simulation..."
+
     let steps =
         lattice
-        |> Potts.simulate parameters
+        |> Ising.simulate parameters
         |> Seq.take sweeps
         |> Array.ofSeq
+
     printfn "[+] Simulation done!"
 
     lattice

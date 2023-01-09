@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Include="src/Helpers.fs" />
+    <Compile Include="src/Ising.fs" />
     <Compile Include="src/Potts.fs" />
     <Compile Include="src/Program.fs" />
   </ItemGroup>
