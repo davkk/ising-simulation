@@ -1,5 +1,6 @@
 module Potts
 
+open Domain
 open Helpers
 open Tensor
 

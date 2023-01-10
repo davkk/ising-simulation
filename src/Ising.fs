@@ -1,5 +1,6 @@
 module Ising
 
+open Domain
 open Helpers
 open Tensor
 

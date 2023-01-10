@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="src/Domain.fs" />
     <Compile Include="src/Helpers.fs" />
     <Compile Include="src/Ising.fs" />
     <Compile Include="src/Potts.fs" />
@@ -16,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Argu" Version="6.1.1" />
+    <PackageReference Include="FSharp.Data" Version="5.0.2" />
     <PackageReference Include="FSharp.Stats" Version="0.4.9" />
     <PackageReference Include="Plotly.NET" Version="3.0.1" />
     <PackageReference Include="Plotly.NET.ImageExport" Version="3.0.0" />
