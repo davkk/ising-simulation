@@ -28,7 +28,13 @@ let totalEnergy (lattice: Tensor<int>) =
           |> countInteractions (index[0], index[1]) spin)
       |> Tensor.sum)
 
-let private update parameters (P: float array) (lattice: Tensor<int>) energy =
+let private update
+    parameters
+    (P: float array)
+    (lattice: Tensor<int>)
+    energy
+    magnetization
+    =
     (*
         Update function that mutates the supplied lattice in-place.
     *)
@@ -53,6 +59,7 @@ let private update parameters (P: float array) (lattice: Tensor<int>) energy =
         |> countInteractions (i, j) newSpin
 
     let dE = oldSpinEnergy - newSpinEnergy
+    let dM = newSpin - oldSpin
 
     if
         dE < 0
@@ -60,23 +67,22 @@ let private update parameters (P: float array) (lattice: Tensor<int>) energy =
     then
         lattice.[[ i; j ]] <- newSpin
 
-        energy + dE
+        energy + dE, magnetization + dM
     else
-        energy
+        energy, magnetization
 
 let simulate parameters lattice =
     let probabilities =
         Array.init 9 (fun i -> exp (- float(i - 4) * parameters.Beta))
 
-    let rec loop i energy =
+    let rec loop energy magnetization =
         seq {
-            yield energy
+            yield energy, magnetization
 
-            let newEnergy =
-                energy
-                |> update parameters probabilities lattice
+            let newEnergy, newMagnetization =
+                update parameters probabilities lattice energy magnetization
 
-            yield! loop (i + 1L) newEnergy
+            yield! loop newEnergy newMagnetization
         }
 
-    loop 1L (totalEnergy lattice)
+    loop (totalEnergy lattice) (lattice |> Tensor.sum)

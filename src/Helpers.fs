@@ -1,6 +1,7 @@
 module Helpers
 
 open Domain
+open Tensor
 
 let inline (%/) a b = (a + b) % b
 
@@ -9,7 +10,11 @@ module Lattice =
         rng.NextInt64(0, max), rng.NextInt64(0, max)
 
 module Simulation =
-    let run parameters initLattice simulate =
+    let run
+        parameters
+        initLattice
+        (simulate: Parameters -> Tensor<int> -> (int * int) seq)
+        =
         printfn ""
         printfn $"[beta=%.2f{parameters.Beta}] Initializing the lattice..."
         let lattice = initLattice parameters
@@ -20,16 +25,8 @@ module Simulation =
             lattice
             |> simulate parameters
             |> Seq.take parameters.Sweeps
-            |> Seq.map float
             |> Array.ofSeq
 
         printfn $"[beta=%.2f{parameters.Beta}] Simulation done!"
 
-        let cutoff =
-            steps.Length
-            - (float parameters.Sweeps * 0.1 |> int)
-
-        parameters.Beta,
-        steps.[cutoff..] |> Array.average,
-        steps.[cutoff..]
-        |> Array.averageBy (fun E -> E ** 2.)
+        parameters.Beta, steps

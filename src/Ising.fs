@@ -25,7 +25,13 @@ let totalEnergy (lattice: Tensor<int>) =
       |> Tensor.sum)
     / 2
 
-let private update parameters (P: float array) (lattice: Tensor<int>) energy =
+let private update
+    parameters
+    (P: float array)
+    (lattice: Tensor<int>)
+    energy
+    magnetization
+    =
     (*
         Update function that mutates the supplied lattice in-place.
     *)
@@ -39,29 +45,30 @@ let private update parameters (P: float array) (lattice: Tensor<int>) energy =
     let dE =
         2 * spin * (lattice |> spinSum (i, j))
 
+    let dM = -2 * spin
+
     if
         dE < 0
         || parameters.Rng.NextDouble() < P.[dE / 4 + 2]
     then
         lattice.[[ i; j ]] <- -spin
 
-        energy + dE
+        energy + dE, magnetization + dM
     else
-        energy
+        energy, magnetization
 
 let simulate parameters lattice =
     let probabilities =
         [| for dE in -8. .. 4. .. 8. -> exp (-parameters.Beta * dE) |]
 
-    let rec loop i energy =
+    let rec loop energy magnetization =
         seq {
-            yield energy
+            yield energy, magnetization
 
-            let newEnergy =
-                energy
-                |> update parameters probabilities lattice
+            let newEnergy, newMagnetization =
+                update parameters probabilities lattice energy magnetization
 
-            yield! loop (i + 1L) newEnergy
+            yield! loop newEnergy newMagnetization
         }
 
-    loop 1L (totalEnergy lattice)
+    loop (totalEnergy lattice) (lattice |> Tensor.sum)

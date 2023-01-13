@@ -18,7 +18,8 @@ open FSharp.Data
 // |> Chart.Spline
 // |> Chart.saveHtml (Path.Combine(__SOURCE_DIRECTORY__, "Energy vs Time"))
 
-type Table = CsvProvider<Schema="Beta (float),Energy (float),Energy^2 (float)", HasHeaders=false>
+type Table =
+    CsvProvider<Schema="Beta (float),Energy (float),Magnetization (float)", HasHeaders=false>
 
 [<EntryPoint>]
 let main argv =
@@ -28,50 +29,74 @@ let main argv =
     let args =
         parser.ParseCommandLine(inputs = argv, raiseOnUsage = true)
 
+    let model = args.GetResult Model
+
     let betaMin, betaMax = args.GetResult Beta
 
-    let samples = args.TryGetResult Samples |> Option.defaultWith (fun _ -> 50.)
+    let samples =
+        args.TryGetResult Samples
+        |> Option.defaultWith (fun _ -> 50.)
+
+    let seed =
+        args.TryGetResult Seed
+        |> Option.defaultWith (fun _ -> 1973)
+
+    let parameters: Parameters =
+        {
+            Rng = System.Random(seed)
+            Sweeps = args.GetResult Sweeps
+            LatticeSize = args.GetResult LatticeSize
+            NumOfStates =
+                args.TryGetResult NumberOfStates
+                |> Option.defaultWith (fun _ -> 2)
+            Beta = 0.0
+        }
 
     let simulations =
         [|
             for beta in betaMin .. (betaMax - betaMin) / samples .. betaMax do
-                let parameters: Parameters =
-                    {
-                        Rng =
-                            System.Random(
-                                args.TryGetResult Seed
-                                |> Option.defaultWith (fun _ -> 1973)
-                            )
-                        Sweeps = args.GetResult Sweeps
-                        LatticeSize = args.GetResult LatticeSize
-                        NumOfStates =
-                            args.TryGetResult NumberOfStates
-                            |> Option.defaultWith (fun _ -> 2)
-                        Beta = beta
-                    }
-
                 yield
-                    match args.GetResult Model with
+                    match model with
                     | Ising ->
                         Simulation.run
-                            ({ parameters with NumOfStates = 2 })
+                            { parameters with
+                                NumOfStates = 2
+                                Beta = beta
+                            }
                             Ising.initLattice
                             Ising.simulate
                     | Potts ->
                         Simulation.run
-                            parameters
+                            { parameters with Beta = beta }
                             Potts.initLattice
                             Potts.simulate
         |]
 
 
-    let buildRow (beta, energy, energy2) = Table.Row(beta, energy, energy2)
+    let buildRow (beta, energy, magnetization) =
+        Table.Row(beta, energy, magnetization)
 
-    let table = new Table(simulations |> Seq.map buildRow)
+    let table =
+        new Table(
+            simulations
+            |> Seq.map (fun (beta, steps) ->
+                steps.[steps.Length - 100 ..]
+                |> Seq.map (fun (energy, magnetization) ->
+                    buildRow (beta, energy, magnetization)))
+            |> Seq.collect id
+        )
 
-    let resultsPath = Path.Combine (__SOURCE_DIRECTORY__, "results")
-    Directory.CreateDirectory (resultsPath) |> ignore
+    let resultsPath =
+        Path.Combine(__SOURCE_DIRECTORY__, "results")
 
-    table.Save(Path.Combine (resultsPath, "test.csv"))
+    Directory.CreateDirectory(resultsPath)
+    |> ignore
+
+    table.Save(
+        Path.Combine(
+            resultsPath,
+            $"{model}-q{parameters.NumOfStates}-L{parameters.LatticeSize}-N{parameters.Sweeps}-{seed}.csv"
+        )
+    )
 
     0
