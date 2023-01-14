@@ -18,8 +18,6 @@ open FSharp.Data
 // |> Chart.Spline
 // |> Chart.saveHtml (Path.Combine(__SOURCE_DIRECTORY__, "Energy vs Time"))
 
-type Table =
-    CsvProvider<Schema="Beta (float),Energy (float),Magnetization (float)", HasHeaders=false>
 
 [<EntryPoint>]
 let main argv =
@@ -49,42 +47,40 @@ let main argv =
             NumOfStates =
                 args.TryGetResult NumberOfStates
                 |> Option.defaultWith (fun _ -> 2)
-            Beta = 0.0
+            Beta = betaMin
         }
 
-    let simulations =
+    let initLattice, simulate =
+        match model with
+        | Ising -> Ising.initLattice, Ising.simulate
+        | Potts -> Potts.initLattice, Potts.simulate
+
+    let lattice = initLattice parameters
+
+    // let the system reach initial equilibrium
+    printfn "[*] Relaxation of the initial lattice..."
+
+    lattice
+    |> simulate
+        { parameters with
+            Sweeps = 10_000 * int parameters.LatticeSize
+        }
+    |> ignore
+
+    let data =
         [|
             for beta in betaMin .. (betaMax - betaMin) / samples .. betaMax do
-                yield
-                    match model with
-                    | Ising ->
-                        Simulation.run
-                            { parameters with
-                                NumOfStates = 2
-                                Beta = beta
-                            }
-                            Ising.initLattice
-                            Ising.simulate
-                    | Potts ->
-                        Simulation.run
-                            { parameters with Beta = beta }
-                            Potts.initLattice
-                            Potts.simulate
+                printfn ""
+                printfn $"[beta=%.2f{beta}] Running the simulation..."
+
+                let result =
+                    lattice
+                    |> simulate { parameters with Beta = beta }
+
+                printfn $"%A{result}"
+
+                yield result
         |]
-
-
-    let buildRow (beta, energy, magnetization) =
-        Table.Row(beta, energy, magnetization)
-
-    let table =
-        new Table(
-            simulations
-            |> Seq.map (fun (beta, steps) ->
-                steps.[steps.Length - 100 ..]
-                |> Seq.map (fun (energy, magnetization) ->
-                    buildRow (beta, energy, magnetization)))
-            |> Seq.collect id
-        )
 
     let resultsPath =
         Path.Combine(__SOURCE_DIRECTORY__, "results")
@@ -92,10 +88,41 @@ let main argv =
     Directory.CreateDirectory(resultsPath)
     |> ignore
 
+    let fileName model q L N seed = $"{model}-q{q}-L{L}-N{N}-{seed}.csv"
+
+    let table =
+        new Table(
+            data.[data.Length - 100 ..]
+            |> Array.map (fun stats ->
+                match model with
+                | Ising ->
+                    Table.Row(
+                        stats.Beta,
+                        stats.AvgE,
+                        stats.C,
+                        System.Nullable(stats.AvgM |> Option.defaultValue 0.0),
+                        System.Nullable(stats.X |> Option.defaultValue 0.0)
+                    )
+                | Potts ->
+                    Table.Row(
+                        stats.Beta,
+                        stats.AvgE,
+                        stats.C,
+                        System.Nullable(),
+                        System.Nullable()
+                    ))
+
+        )
+
     table.Save(
         Path.Combine(
             resultsPath,
-            $"{model}-q{parameters.NumOfStates}-L{parameters.LatticeSize}-N{parameters.Sweeps}-{seed}.csv"
+            fileName
+                model
+                parameters.NumOfStates
+                parameters.LatticeSize
+                parameters.Sweeps
+                seed
         )
     )
 

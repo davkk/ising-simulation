@@ -3,6 +3,7 @@ module Ising
 open Domain
 open Helpers
 open Tensor
+open FSharp.Stats
 
 let initLattice parameters =
     HostTensor.init
@@ -29,7 +30,7 @@ let private update
     parameters
     (P: float array)
     (lattice: Tensor<int>)
-    energy
+    (energy: float)
     magnetization
     =
     (*
@@ -53,22 +54,66 @@ let private update
     then
         lattice.[[ i; j ]] <- -spin
 
-        energy + dE, magnetization + dM
+        energy + float dE, magnetization + float dM
     else
         energy, magnetization
 
-let simulate parameters lattice =
+let simulate (parameters: Parameters) lattice =
     let probabilities =
         [| for dE in -8. .. 4. .. 8. -> exp (-parameters.Beta * dE) |]
 
-    let rec loop energy magnetization =
-        seq {
-            yield energy, magnetization
+    let mutable energy =
+        totalEnergy lattice |> float
 
-            let newEnergy, newMagnetization =
-                update parameters probabilities lattice energy magnetization
+    let mutable magnetization =
+        lattice |> Tensor.sum |> float
 
-            yield! loop newEnergy newMagnetization
-        }
+    let steps =
+        [|
+            for _ in 1 .. parameters.Sweeps do
+                yield energy, magnetization
 
-    loop (totalEnergy lattice) (lattice |> Tensor.sum)
+                let newEnergy, newMagnetization =
+                    update parameters probabilities lattice energy magnetization
+
+                energy <- newEnergy
+                magnetization <- newMagnetization
+        |]
+
+    let avgE =
+        (steps |> Array.averageBy fst)
+        / float lattice.NElems
+
+    let C =
+        (steps |> Array.map fst |> Seq.stDev)
+        * parameters.Beta ** 2.
+        / float lattice.NElems
+
+    let avgM =
+        (steps |> Array.averageBy snd)
+        / float lattice.NElems
+
+    let X =
+        (steps |> Array.map snd |> Seq.stDev)
+        * parameters.Beta
+        / float lattice.NElems
+
+    {
+        Beta = parameters.Beta
+        AvgE = avgE
+        C = C
+        AvgM = Some avgM
+        X = Some X
+    }
+
+// let rec loop energy magnetization =
+//     seq {
+//         yield energy, magnetization
+//
+//         let newEnergy, newMagnetization =
+//             update parameters probabilities lattice energy magnetization
+//
+//         yield! loop newEnergy newMagnetization
+//     }
+//
+// loop (totalEnergy lattice) (lattice |> Tensor.sum)

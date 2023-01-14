@@ -3,6 +3,7 @@ module Potts
 open Domain
 open Helpers
 open Tensor
+open FSharp.Stats
 
 let inline private kronecker ((s_i, s_j): int * int) =
     if s_i = s_j then 1 else 0
@@ -22,19 +23,13 @@ let inline countInteractions (i, j) spin (lattice: Tensor<int>) =
     + kronecker (spin, lattice.[[ i; (j + 1L) %/ L ]])
 
 let totalEnergy (lattice: Tensor<int>) =
-    -(lattice
-      |> HostTensor.mapi (fun index spin ->
-          lattice
-          |> countInteractions (index[0], index[1]) spin)
-      |> Tensor.sum)
+    - float(lattice
+            |> HostTensor.mapi (fun index spin ->
+                lattice
+                |> countInteractions (index[0], index[1]) spin)
+            |> Tensor.sum)
 
-let private update
-    parameters
-    (P: float array)
-    (lattice: Tensor<int>)
-    energy
-    magnetization
-    =
+let private update parameters (P: float array) (lattice: Tensor<int>) energy =
     (*
         Update function that mutates the supplied lattice in-place.
     *)
@@ -59,7 +54,6 @@ let private update
         |> countInteractions (i, j) newSpin
 
     let dE = oldSpinEnergy - newSpinEnergy
-    let dM = newSpin - oldSpin
 
     if
         dE < 0
@@ -67,22 +61,52 @@ let private update
     then
         lattice.[[ i; j ]] <- newSpin
 
-        energy + dE, magnetization + dM
+        energy + float dE
     else
-        energy, magnetization
+        energy
 
-let simulate parameters lattice =
+let simulate (parameters: Parameters) lattice =
     let probabilities =
         Array.init 9 (fun i -> exp (- float(i - 4) * parameters.Beta))
 
-    let rec loop energy magnetization =
-        seq {
-            yield energy, magnetization
+    let mutable energy = totalEnergy lattice
 
-            let newEnergy, newMagnetization =
-                update parameters probabilities lattice energy magnetization
+    let steps =
+        [|
+            for _ in 1 .. parameters.Sweeps do
+                yield energy
 
-            yield! loop newEnergy newMagnetization
-        }
+                let newEnergy =
+                    update parameters probabilities lattice energy
 
-    loop (totalEnergy lattice) (lattice |> Tensor.sum)
+                do energy <- newEnergy
+        |]
+
+    let avgE =
+        (steps |> Array.average)
+        / float lattice.NElems
+
+    let C =
+        (steps |> Seq.stDev)
+        * parameters.Beta ** 2.
+        / float lattice.NElems
+
+
+    {
+        Beta = parameters.Beta
+        AvgE = avgE
+        C = C
+        AvgM = None
+        X = None
+    }
+// let rec loop energy magnetization =
+//     seq {
+//         yield energy, magnetization
+//
+//         let newEnergy, newMagnetization =
+//             update parameters probabilities lattice energy magnetization
+//
+//         yield! loop newEnergy newMagnetization
+//     }
+//
+// loop (totalEnergy lattice) (lattice |> Tensor.sum)
