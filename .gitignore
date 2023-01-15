@@ -29,5 +29,4 @@ obj/
 *.speedscope.json
 
 **/*.html
-**/*.csv
 # End of https://www.toptal.com/developers/gitignore/api/dotnetcore,linux

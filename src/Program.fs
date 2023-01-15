@@ -1,23 +1,37 @@
 module Program
 
 open Domain
-open Helpers
 
 open System.IO
 open FSharp.Stats
-open Argu
 open FSharp.Data
+open Argu
 
-// lattice
-// |> HostTensor.toList2D
-// |> Chart.Heatmap
-// |> Chart.saveHtml (Path.Combine(__SOURCE_DIRECTORY__, "heatmap"))
-//
-// steps
-// |> Array.filter (fun (i, _) -> i % (parameters.Sweeps / 1000) = 0)
-// |> Chart.Spline
-// |> Chart.saveHtml (Path.Combine(__SOURCE_DIRECTORY__, "Energy vs Time"))
+type Arguments =
+    | [<MainCommand; Mandatory; ExactlyOnce; CliPosition(CliPosition.First)>] Model of
+        Model
+    | [<Mandatory; ExactlyOnce; EqualsAssignment; AltCommandLine("-L")>] LatticeSize of
+        int64
+    | [<Mandatory; ExactlyOnce; EqualsAssignment; AltCommandLine("-N")>] Sweeps of
+        int
+    | [<Mandatory; ExactlyOnce>] Beta of float * float
+    | [<EqualsAssignment; AltCommandLine("-S")>] Samples of float
+    | [<EqualsAssignment; AltCommandLine("-q")>] NumberOfStates of int
+    | [<EqualsAssignment>] Seed of int
 
+    interface IArgParserTemplate with
+        member s.Usage =
+            match s with
+            | Model _ -> "choose model to simulate: Ising or Potts"
+            | Sweeps _ -> "number of Monte Carlo sweeps"
+            | Samples _ -> "number of data points to generate (default: 50)"
+            | Beta _ -> "value of beta = 1 / k_B T"
+            | LatticeSize _ -> "size of the lattice (LxL)"
+            | Seed _ -> "seed of random number generator (default: 1973)"
+            | NumberOfStates _ -> "number of states q (default: 2)"
+
+type Table =
+    CsvProvider<Schema="float,float,float,float?,float?", HasHeaders=false>
 
 [<EntryPoint>]
 let main argv =

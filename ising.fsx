@@ -21,7 +21,7 @@ let temperature =
     |> Series.mapValues (fun beta -> 1. / beta)
     |> Series.values
 
-Seq.zip temperature data.["E"].Values
+Seq.zip temperature data.["C"].Values
 |> Seq.windowed 5
 |> Seq.map (fun window -> fst window[0], window |> Array.averageBy snd)
 |> Chart.Line

@@ -90,11 +90,13 @@ let simulate (parameters: Parameters) lattice =
         / float lattice.NElems
 
     let avgM =
-        (steps |> Array.averageBy snd)
+        (steps |> Array.averageBy (snd >> abs))
         / float lattice.NElems
 
     let X =
-        (steps |> Array.map snd |> Seq.stDev)
+        (steps
+         |> Array.map (snd >> abs)
+         |> Seq.stDev)
         * parameters.Beta
         / float lattice.NElems
 
